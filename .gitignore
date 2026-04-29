@@ -1,0 +1,14 @@
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+dist/
+build/
+captures/
+data/
+*.bin
+*_Raw_*.bin
+*_Raw_LogFile.csv
+_codex_dca1000_runtime.json
