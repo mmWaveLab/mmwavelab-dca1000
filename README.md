@@ -97,3 +97,12 @@ If the DCA suite passes but `probe-radar-cli` shows no responsive port, the
 radar is probably not running the mmWave demo CLI firmware or is in an SOP
 mode intended for mmWave Studio/firmware loading. That is not a DCA1000
 failure; it is a radar-side mode/firmware issue.
+
+When an AR-DevPack/IWR board is attached through FTDI, Windows can enumerate
+four ports at once. Seeing four ports is normal; it does not mean all four are
+mmWave demo CLI ports. Use `probe-radar-cli` to find the one that responds to
+`version`.
+
+The package hides TI's helper console windows by default and automatically
+cleans up `DCA1000EVM_CLI_Record.exe` after compatibility suites. This avoids
+the black recording console that otherwise sometimes has to be closed by hand.

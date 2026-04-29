@@ -53,9 +53,15 @@ class DCA1000CompatibilitySuite:
         ]
         results = []
         for command in commands:
-            result = self.ti_cli.run(command, cli_json, timeout_s=max(20.0, duration_ms / 1000.0 + 5.0))
+            if command == "start_record":
+                timeout_s = max(5.0, duration_ms / 1000.0 + 5.0)
+            else:
+                timeout_s = 20.0
+            result = self.ti_cli.run(command, cli_json, timeout_s=timeout_s)
             results.append(asdict(result))
             time.sleep(0.25)
+        for cleanup in self.ti_cli.cleanup_record_helpers():
+            results.append(asdict(cleanup))
 
         files = [
             {"path": str(path), "size_bytes": path.stat().st_size}
