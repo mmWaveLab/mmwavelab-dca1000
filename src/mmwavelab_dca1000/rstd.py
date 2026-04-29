@@ -47,7 +47,8 @@ def build_rstd_powershell_command(
             "  Write-Output 'Unable to connect to mmWave Studio RSTD net server. In the Studio Lua shell run: RSTD.NetStart()'",
             "  exit 2",
             "}",
-            f"$send = [RtttNetClientAPI.RtttNetClient]::SendCommand({_ps_single_quote(lua_command)})",
+            "$lua_result = New-Object 'System.Object[]' 0",
+            f"$send = [RtttNetClientAPI.RtttNetClient]::SendCommand({_ps_single_quote(lua_command)}, [ref]$lua_result)",
             '"SendCommand=" + $send',
             "if ($send -ne 30000) { exit 3 }",
         ]
@@ -64,16 +65,21 @@ def run_rstd_lua_command(
     dll_path: str | Path = DEFAULT_RSTD_DLL,
     host: str = "127.0.0.1",
     port: int = 2777,
-    timeout_s: int = 30,
+    timeout_s: int = 180,
 ) -> RstdCommandResult:
     ps = build_rstd_powershell_command(lua_command, dll_path=dll_path, host=host, port=port)
-    completed = subprocess.run(
-        ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", ps],
-        text=True,
-        capture_output=True,
-        timeout=timeout_s,
-        check=False,
-    )
+    try:
+        completed = subprocess.run(
+            ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", ps],
+            text=True,
+            capture_output=True,
+            timeout=timeout_s,
+            check=False,
+        )
+    except subprocess.TimeoutExpired as exc:
+        partial = ((exc.stdout or "") + (exc.stderr or "")).strip()
+        output = f"Timed out after {timeout_s}s while waiting for mmWave Studio. Partial output: {partial}"
+        return RstdCommandResult(command=lua_command, returncode=124, output=output, ok=False)
     output = (completed.stdout + completed.stderr).strip()
     return RstdCommandResult(command=lua_command, returncode=completed.returncode, output=output, ok=completed.returncode == 0)
 
@@ -84,7 +90,7 @@ def run_rstd_lua_script(
     dll_path: str | Path = DEFAULT_RSTD_DLL,
     host: str = "127.0.0.1",
     port: int = 2777,
-    timeout_s: int = 30,
+    timeout_s: int = 180,
 ) -> RstdCommandResult:
     return run_rstd_lua_command(
         build_dofile_command(script_path),

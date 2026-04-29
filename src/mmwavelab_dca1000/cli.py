@@ -129,7 +129,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--rstd-dll", default=DEFAULT_RSTD_DLL)
     p.add_argument("--host", default="127.0.0.1")
     p.add_argument("--port", type=int, default=2777)
-    p.add_argument("--timeout-s", type=int, default=30)
+    p.add_argument("--timeout-s", type=int, default=180)
     p.set_defaults(func=cmd_run_studio_lua)
 
     return parser

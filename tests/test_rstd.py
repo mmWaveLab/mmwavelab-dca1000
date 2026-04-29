@@ -15,4 +15,5 @@ def test_build_rstd_powershell_command_mentions_netstart():
     ps = build_rstd_powershell_command('WriteToLog("hello\\n", "green")')
     assert "RtttNetClient" in ps
     assert "SendCommand" in ps
+    assert "[ref]$lua_result" in ps
     assert "RSTD.NetStart()" in ps

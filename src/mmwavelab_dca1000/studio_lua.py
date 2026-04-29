@@ -115,7 +115,12 @@ CHIRP_LOOPS = {cfg.chirp_loops}
 FRAME_COUNT = {cfg.frame_count}
 FRAME_PERIOD_MS = {_lua_number(cfg.frame_period_ms)}
 
-function mmwl_check(label, ret)
+function mmwl_call(label, fn)
+    local ok, ret = pcall(fn)
+    if ok == false then
+        WriteToLog(label .. " exception: " .. tostring(ret) .. "\\n", "red")
+        return -9999
+    end
     if ret == 0 then
         WriteToLog(label .. " Success\\n", "green")
     else
@@ -126,45 +131,53 @@ end
 
 WriteToLog("mmwavelab IWR1843+DCA1000 Studio capture script start\\n", "green")
 
-mmwl_check("FullReset", ar1.FullReset())
+mmwl_call("FullReset", function() return ar1.FullReset() end)
 RSTD.Sleep(1000)
-mmwl_check("SOPControl", ar1.SOPControl(SOP_MODE))
+mmwl_call("SOPControl", function() return ar1.SOPControl(SOP_MODE) end)
 RSTD.Sleep(1000)
-mmwl_check("Connect", ar1.Connect(COM_PORT, BAUDRATE, CONNECT_TIMEOUT_MS))
-mmwl_check("Calling_IsConnected", ar1.Calling_IsConnected())
+connect_ret = mmwl_call("Connect", function() return ar1.Connect(COM_PORT, BAUDRATE, CONNECT_TIMEOUT_MS) end)
+if connect_ret ~= 0 then
+    WriteToLog("Aborting before firmware download because Connect failed on COM" .. tostring(COM_PORT) .. "\\n", "red")
+    return
+end
+connected_ret = mmwl_call("Calling_IsConnected", function() return ar1.Calling_IsConnected() end)
+if connected_ret ~= 0 then
+    WriteToLog("Aborting before firmware download because Calling_IsConnected failed on COM" .. tostring(COM_PORT) .. "\\n", "red")
+    return
+end
 ar1.frequencyBandSelection("77G")
 ar1.SelectChipVersion("XWR1843")
 
-mmwl_check("DownloadBSSFw", ar1.DownloadBSSFw(BSS_FW))
-mmwl_check("DownloadMSSFw", ar1.DownloadMSSFw(MSS_FW))
-mmwl_check("PowerOn", ar1.PowerOn(POWER_ON_MODE, 1000, 0, 0))
-mmwl_check("RfEnable", ar1.RfEnable())
+mmwl_call("DownloadBSSFw", function() return ar1.DownloadBSSFw(BSS_FW) end)
+mmwl_call("DownloadMSSFw", function() return ar1.DownloadMSSFw(MSS_FW) end)
+mmwl_call("PowerOn", function() return ar1.PowerOn(POWER_ON_MODE, 1000, 0, 0) end)
+mmwl_call("RfEnable", function() return ar1.RfEnable() end)
 
-mmwl_check("ChanNAdcConfig", ar1.ChanNAdcConfig(1, 1, 0, 1, 1, 1, 1, 2, 1, 0))
-mmwl_check("LPModConfig", ar1.LPModConfig(0, 0))
-mmwl_check("RfInit", ar1.RfInit())
+mmwl_call("ChanNAdcConfig", function() return ar1.ChanNAdcConfig(1, 1, 0, 1, 1, 1, 1, 2, 1, 0) end)
+mmwl_call("LPModConfig", function() return ar1.LPModConfig(0, 0) end)
+mmwl_call("RfInit", function() return ar1.RfInit() end)
 RSTD.Sleep(1000)
 
-mmwl_check("DataPathConfig", ar1.DataPathConfig(1, 1, 0))
-mmwl_check("LvdsClkConfig", ar1.LvdsClkConfig(1, 1))
-mmwl_check("LVDSLaneConfig", ar1.LVDSLaneConfig(0, 1, 1, 0, 0, 1, 0, 0))
+mmwl_call("DataPathConfig", function() return ar1.DataPathConfig(1, 1, 0) end)
+mmwl_call("LvdsClkConfig", function() return ar1.LvdsClkConfig(1, 1) end)
+mmwl_call("LVDSLaneConfig", function() return ar1.LVDSLaneConfig(0, 1, 1, 0, 0, 1, 0, 0) end)
 
-mmwl_check("ProfileConfig", ar1.ProfileConfig(
+mmwl_call("ProfileConfig", function() return ar1.ProfileConfig(
     0, START_FREQ, IDLE_TIME, ADC_START_TIME, RAMP_END_TIME,
     0, 0, 0, 0, 0, 0, FREQ_SLOPE, 0,
     ADC_SAMPLES, SAMPLE_RATE, 0, 0, RX_GAIN
-))
-mmwl_check("ChirpConfig", ar1.ChirpConfig(0, 0, 0, 0, 0, 0, 0, 1, 0, 0))
-mmwl_check("FrameConfig", ar1.FrameConfig(0, 0, FRAME_COUNT, CHIRP_LOOPS, FRAME_PERIOD_MS, 0, 0, 1))
+) end)
+mmwl_call("ChirpConfig", function() return ar1.ChirpConfig(0, 0, 0, 0, 0, 0, 0, 1, 0, 0) end)
+mmwl_call("FrameConfig", function() return ar1.FrameConfig(0, 0, FRAME_COUNT, CHIRP_LOOPS, FRAME_PERIOD_MS, 0, 0, 1) end)
 
-mmwl_check("SelectCaptureDevice", ar1.SelectCaptureDevice("DCA1000"))
-mmwl_check("CaptureCardConfig_EthInit", ar1.CaptureCardConfig_EthInit(HOST_IP, DCA_IP, DCA_MAC, CONFIG_PORT, DATA_PORT))
-mmwl_check("CaptureCardConfig_Mode", ar1.CaptureCardConfig_Mode(1, 2, 1, 2, 3, 30))
-mmwl_check("CaptureCardConfig_PacketDelay", ar1.CaptureCardConfig_PacketDelay(PACKET_DELAY_US))
+mmwl_call("SelectCaptureDevice", function() return ar1.SelectCaptureDevice("DCA1000") end)
+mmwl_call("CaptureCardConfig_EthInit", function() return ar1.CaptureCardConfig_EthInit(HOST_IP, DCA_IP, DCA_MAC, CONFIG_PORT, DATA_PORT) end)
+mmwl_call("CaptureCardConfig_Mode", function() return ar1.CaptureCardConfig_Mode(1, 2, 1, 2, 3, 30) end)
+mmwl_call("CaptureCardConfig_PacketDelay", function() return ar1.CaptureCardConfig_PacketDelay(PACKET_DELAY_US) end)
 
-mmwl_check("CaptureCardConfig_StartRecord", ar1.CaptureCardConfig_StartRecord(SAVE_DATA_PATH, 1))
+mmwl_call("CaptureCardConfig_StartRecord", function() return ar1.CaptureCardConfig_StartRecord(SAVE_DATA_PATH, 1) end)
 RSTD.Sleep(1000)
-mmwl_check("StartFrame", ar1.StartFrame())
+mmwl_call("StartFrame", function() return ar1.StartFrame() end)
 RSTD.Sleep(FRAME_COUNT * FRAME_PERIOD_MS + 2000)
 
 WriteToLog("mmwavelab capture script done. ADC target: " .. SAVE_DATA_PATH .. "\\n", "green")
