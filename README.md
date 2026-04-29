@@ -10,6 +10,7 @@ This repository is designed for the `mmWaveLab` workflow:
 - Run a DCA-only compatibility suite before involving a radar board.
 - Probe xWR/IWR CLI serial ports.
 - Generate high-bandwidth IWR1843 profiles for best practical range resolution.
+- Generate mmWave Studio Lua scripts for the IWR1843 firmware-load + DCA1000 path.
 
 The first target setup is:
 
@@ -59,6 +60,20 @@ Probe possible radar CLI ports:
 mmwl-dca1000 probe-radar-cli COM9 COM10 COM11 COM12
 ```
 
+Generate a mmWave Studio automation script when the board is in the
+AR-DevPack/FTDI firmware-load path instead of the mmWave SDK demo CLI path:
+
+```powershell
+mmwl-dca1000 generate-studio-lua --com-port 12 --output scripts/iwr1843_dca1000_best_range.lua
+```
+
+If mmWave Studio is open and its Lua shell has run `RSTD.NetStart()`, send the
+generated script to Studio without clicking through the GUI:
+
+```powershell
+mmwl-dca1000 run-studio-lua scripts/iwr1843_dca1000_best_range.lua
+```
+
 ## Best Range Profile
 
 The bundled best-range IWR1843 profile uses:
@@ -89,7 +104,9 @@ On 2026-04-29 the DCA1000 control path passed:
 - Timed start-record command.
 
 The IWR1843/DevPack serial ports enumerated, but no port responded to mmWave
-demo CLI `version` yet. See `docs/compatibility-2026-04-29.md`.
+demo CLI `version` yet. The current user-reported physical SOP state is
+`1 0 0`, so the next bring-up route is the mmWave Studio Lua firmware-load
+flow. See `docs/compatibility-2026-04-29.md`.
 
 ## Hardware Notes
 
@@ -102,6 +119,11 @@ When an AR-DevPack/IWR board is attached through FTDI, Windows can enumerate
 four ports at once. Seeing four ports is normal; it does not mean all four are
 mmWave demo CLI ports. Use `probe-radar-cli` to find the one that responds to
 `version`.
+
+If no port responds to `version`, use `generate-studio-lua` and run the
+generated script inside mmWave Studio. That route downloads `xwr18xx` BSS/MSS
+firmware through Studio and then starts DCA1000 capture; it does not require
+the mmWave demo CLI to already be running.
 
 The package hides TI's helper console windows by default and automatically
 cleans up `DCA1000EVM_CLI_Record.exe` after compatibility suites. This avoids

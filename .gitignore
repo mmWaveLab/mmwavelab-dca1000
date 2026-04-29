@@ -12,3 +12,4 @@ data/
 *_Raw_*.bin
 *_Raw_LogFile.csv
 _codex_dca1000_runtime.json
+scripts/*.lua

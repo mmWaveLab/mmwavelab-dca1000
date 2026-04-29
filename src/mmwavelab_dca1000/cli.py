@@ -10,6 +10,8 @@ from pathlib import Path
 from .compat import DCA1000CompatibilitySuite
 from .radar_cli import list_serial_ports, probe_mmwave_cli
 from .radar_config import write_iwr1843_best_range_config
+from .rstd import DEFAULT_RSTD_DLL, run_rstd_lua_script
+from .studio_lua import StudioLuaConfig, write_iwr1843_studio_lua
 from .ti_cli import TiDcaCli, find_ti_dca_cli
 
 
@@ -45,6 +47,41 @@ def cmd_generate_iwr1843_config(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_generate_studio_lua(args: argparse.Namespace) -> int:
+    cfg = StudioLuaConfig(
+        com_port=args.com_port,
+        baudrate=args.baudrate,
+        connect_timeout_ms=args.connect_timeout_ms,
+        sop_control=args.sop_control,
+        power_on_mode=args.power_on_mode,
+        mmwave_studio_root=args.mmwave_studio_root,
+        capture_path=args.capture_path,
+        host_ip=args.host_ip,
+        dca_ip=args.dca_ip,
+        dca_mac=args.dca_mac,
+        config_port=args.config_port,
+        data_port=args.data_port,
+        packet_delay_us=args.packet_delay_us,
+        frame_count=args.frame_count,
+        chirp_loops=args.chirp_loops,
+    )
+    written = write_iwr1843_studio_lua(args.output, cfg)
+    print(json.dumps({"output": str(Path(args.output)), "config": written.as_dict(), "metrics": written.metrics()}, ensure_ascii=False, indent=2))
+    return 0
+
+
+def cmd_run_studio_lua(args: argparse.Namespace) -> int:
+    result = run_rstd_lua_script(
+        args.script,
+        dll_path=args.rstd_dll,
+        host=args.host,
+        port=args.port,
+        timeout_s=args.timeout_s,
+    )
+    print(json.dumps(result.as_dict(), ensure_ascii=False, indent=2))
+    return 0 if result.ok else 1
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="mmwl-dca1000")
     sub = parser.add_subparsers(required=True)
@@ -67,6 +104,33 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("generate-iwr1843-config")
     p.add_argument("--output", default="configs/iwr1843_best_range_1tx_256s_3983mhz.cfg")
     p.set_defaults(func=cmd_generate_iwr1843_config)
+
+    p = sub.add_parser("generate-studio-lua")
+    p.add_argument("--output", default="scripts/iwr1843_dca1000_best_range.lua")
+    p.add_argument("--com-port", type=int, default=12)
+    p.add_argument("--baudrate", type=int, default=921600)
+    p.add_argument("--connect-timeout-ms", type=int, default=1000)
+    p.add_argument("--sop-control", type=int, default=2)
+    p.add_argument("--power-on-mode", type=int, default=1)
+    p.add_argument("--mmwave-studio-root", default=r"C:\ti\mmwave_studio_02_01_01_00\mmWaveStudio")
+    p.add_argument("--capture-path", default=r"C:\ti\mmwave_studio_02_01_01_00\mmWaveStudio\PostProc\adc_data.bin")
+    p.add_argument("--host-ip", default="192.168.33.30")
+    p.add_argument("--dca-ip", default="192.168.33.180")
+    p.add_argument("--dca-mac", default="12:34:56:78:90:12")
+    p.add_argument("--config-port", type=int, default=4096)
+    p.add_argument("--data-port", type=int, default=4098)
+    p.add_argument("--packet-delay-us", type=int, default=25)
+    p.add_argument("--frame-count", type=int, default=5)
+    p.add_argument("--chirp-loops", type=int, default=16)
+    p.set_defaults(func=cmd_generate_studio_lua)
+
+    p = sub.add_parser("run-studio-lua")
+    p.add_argument("script")
+    p.add_argument("--rstd-dll", default=DEFAULT_RSTD_DLL)
+    p.add_argument("--host", default="127.0.0.1")
+    p.add_argument("--port", type=int, default=2777)
+    p.add_argument("--timeout-s", type=int, default=30)
+    p.set_defaults(func=cmd_run_studio_lua)
 
     return parser
 
