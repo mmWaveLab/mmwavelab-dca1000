@@ -8,9 +8,11 @@ from dataclasses import asdict
 from pathlib import Path
 
 from .compat import DCA1000CompatibilitySuite
-from .radar_cli import list_serial_ports, probe_mmwave_cli
+from .config import DCA1000Config
+from .radar_cli import list_serial_ports, load_cli_config_lines, probe_mmwave_cli, send_mmwave_cli_commands
 from .radar_config import write_iwr1843_best_range_config
 from .rstd import DEFAULT_RSTD_DLL, run_rstd_lua_script
+from .serial_diag import collect_serial_diagnostics
 from .studio_lua import StudioLuaConfig, write_iwr1843_studio_lua
 from .ti_cli import TiDcaCli, find_ti_dca_cli
 
@@ -41,10 +43,98 @@ def cmd_probe_radar_cli(args: argparse.Namespace) -> int:
     return 0 if any(item["responsive"] for item in probes) else 1
 
 
+def cmd_serial_diagnostics(args: argparse.Namespace) -> int:
+    report = collect_serial_diagnostics(args.ports or None, d2xx_dll=args.d2xx_dll)
+    print(json.dumps(report.as_dict(), ensure_ascii=False, indent=2))
+    return 0 if any(item.ok for item in report.open_attempts) else 1
+
+
 def cmd_generate_iwr1843_config(args: argparse.Namespace) -> int:
     metrics = write_iwr1843_best_range_config(args.output)
     print(json.dumps(metrics.as_dict(), ensure_ascii=False, indent=2))
     return 0
+
+
+def cmd_capture_sdk_demo(args: argparse.Namespace) -> int:
+    out = Path(args.output_dir or Path("captures") / f"sdk_demo_capture_{time.strftime('%Y%m%d_%H%M%S')}")
+    data_dir = out / "data"
+    meta_dir = out / "meta"
+    data_dir.mkdir(parents=True, exist_ok=True)
+    meta_dir.mkdir(parents=True, exist_ok=True)
+
+    cfg_lines = load_cli_config_lines(args.radar_cfg, include_sensor_start=False)
+    pre_start = [line for line in cfg_lines if line.lower() != "sensorstart"]
+    config_result = send_mmwave_cli_commands(
+        args.com_port,
+        pre_start,
+        baudrate=args.baudrate,
+        timeout_s=args.command_timeout_s,
+        inter_command_delay_s=args.inter_command_delay_s,
+    )
+
+    ti = TiDcaCli(args.tool)
+    dca_results = []
+    start_record_result = None
+    start_result = None
+    stop_result = None
+    if config_result.ok:
+        dca_cfg = DCA1000Config.load(args.dca_json)
+        dca_cfg.set_capture_path(file_base_path=data_dir.resolve(), file_prefix=args.file_prefix, duration_ms=args.duration_ms)
+        runtime_json = dca_cfg.save(meta_dir / "dca1000_runtime_config.json")
+        cli_json = dca_cfg.stage_for_ti_cli(ti.exe, "_mmwl_dca1000_runtime_capture.json")
+        for command in ("query_sys_status", "reset_fpga", "fpga_version", "fpga", "record"):
+            result = ti.run(command, cli_json, timeout_s=20.0)
+            dca_results.append(asdict(result))
+            if not result.ok and command in {"query_sys_status", "reset_fpga", "fpga", "record"}:
+                break
+        else:
+            record_process = ti.start_process("start_record", cli_json)
+            time.sleep(args.record_arm_delay_s)
+            start_result = send_mmwave_cli_commands(
+                args.com_port,
+                ["sensorStart"],
+                baudrate=args.baudrate,
+                timeout_s=args.command_timeout_s,
+            )
+            start_record_result = ti.wait_process(
+                "start_record",
+                record_process,
+                timeout_s=max(35.0, args.duration_ms / 1000.0 + 35.0),
+            )
+            dca_results.append(asdict(start_record_result))
+            if args.stop_sensor:
+                stop_result = send_mmwave_cli_commands(
+                    args.com_port,
+                    ["sensorStop"],
+                    baudrate=args.baudrate,
+                    timeout_s=args.command_timeout_s,
+                )
+            dca_results.extend(asdict(item) for item in ti.cleanup_record_helpers())
+    else:
+        runtime_json = None
+        cli_json = None
+
+    report = {
+        "output_dir": str(out),
+        "radar_cfg": str(args.radar_cfg),
+        "dca_json": str(runtime_json) if runtime_json else None,
+        "cli_json": str(cli_json) if cli_json else None,
+        "com_port": args.com_port,
+        "baudrate": args.baudrate,
+        "config_result": asdict(config_result),
+        "dca_results": dca_results,
+        "sensor_start": asdict(start_result) if start_result else None,
+        "sensor_stop": asdict(stop_result) if stop_result else None,
+        "files": [
+            {"path": str(path), "size_bytes": path.stat().st_size}
+            for path in sorted(out.glob("**/*"))
+            if path.is_file()
+        ],
+    }
+    (out / "sdk_demo_capture_report.json").write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
+    print(json.dumps(report, ensure_ascii=False, indent=2))
+    data_files = [item for item in report["files"] if str(item["path"]).lower().endswith(".bin") and item["size_bytes"] > 0]
+    return 0 if data_files else 1
 
 
 def cmd_generate_studio_lua(args: argparse.Namespace) -> int:
@@ -101,9 +191,29 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--baudrate", type=int, action="append", default=[115200, 921600])
     p.set_defaults(func=cmd_probe_radar_cli)
 
+    p = sub.add_parser("serial-diagnostics")
+    p.add_argument("ports", nargs="*")
+    p.add_argument("--d2xx-dll", default=None)
+    p.set_defaults(func=cmd_serial_diagnostics)
+
     p = sub.add_parser("generate-iwr1843-config")
     p.add_argument("--output", default="configs/iwr1843_best_range_1tx_256s_3983mhz.cfg")
     p.set_defaults(func=cmd_generate_iwr1843_config)
+
+    p = sub.add_parser("capture-sdk-demo")
+    p.add_argument("--com-port", required=True)
+    p.add_argument("--baudrate", type=int, default=115200)
+    p.add_argument("--radar-cfg", default="configs/iwr1843_best_range_1tx_256s_3983mhz.cfg")
+    p.add_argument("--dca-json", default="configs/dca1000_iwr1843.json")
+    p.add_argument("--tool", default=None)
+    p.add_argument("--output-dir", default="")
+    p.add_argument("--duration-ms", type=int, default=1200)
+    p.add_argument("--file-prefix", default="iwr1843_adc")
+    p.add_argument("--command-timeout-s", type=float, default=1.5)
+    p.add_argument("--inter-command-delay-s", type=float, default=0.05)
+    p.add_argument("--record-arm-delay-s", type=float, default=0.5)
+    p.add_argument("--stop-sensor", action="store_true")
+    p.set_defaults(func=cmd_capture_sdk_demo)
 
     p = sub.add_parser("generate-studio-lua")
     p.add_argument("--output", default="scripts/iwr1843_dca1000_best_range.lua")

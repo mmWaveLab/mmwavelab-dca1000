@@ -13,3 +13,4 @@ data/
 *_Raw_LogFile.csv
 _codex_dca1000_runtime.json
 scripts/*.lua
+tools/

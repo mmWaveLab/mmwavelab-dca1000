@@ -60,6 +60,21 @@ Probe possible radar CLI ports:
 mmwl-dca1000 probe-radar-cli COM9 COM10 COM11 COM12
 ```
 
+If ports are visible in Device Manager but cannot be opened, collect a deeper
+Windows/D2XX report:
+
+```powershell
+mmwl-dca1000 serial-diagnostics COM7 COM8 COM9 COM10 COM11 COM12
+```
+
+If the radar board is running the mmWave SDK demo CLI on an XDS110
+Application/User UART, configure the radar and run a DCA1000 capture in one
+step:
+
+```powershell
+mmwl-dca1000 capture-sdk-demo --com-port COM7 --baudrate 115200 --duration-ms 1200 --stop-sensor
+```
+
 Generate a mmWave Studio automation script when the board is in the
 AR-DevPack/FTDI firmware-load path instead of the mmWave SDK demo CLI path:
 

@@ -90,6 +90,34 @@ class TiDcaCli:
                 self._is_ok(command, None, output),
             )
 
+    def start_process(self, command: str, config_json: str | Path) -> subprocess.Popen[str]:
+        return subprocess.Popen(
+            [str(self.exe), command, str(config_json)],
+            cwd=str(self.exe.parent),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            **self._window_kwargs(),
+        )
+
+    def wait_process(self, command: str, process: subprocess.Popen[str], timeout_s: float) -> TiDcaResult:
+        started = time.time()
+        try:
+            stdout, stderr = process.communicate(timeout=timeout_s)
+            output = ((stdout or "") + (("\n" + stderr) if stderr else "")).strip()
+            return TiDcaResult(command, process.returncode, output, time.time() - started, self._is_ok(command, process.returncode, output))
+        except subprocess.TimeoutExpired as exc:
+            self._kill_pid_tree(process.pid)
+            try:
+                stdout, stderr = process.communicate(timeout=2.0)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                stdout, stderr = process.communicate()
+            output = ((stdout or exc.stdout or "") + (("\n" + (stderr or exc.stderr)) if (stderr or exc.stderr) else "")).strip()
+            return TiDcaResult(command, None, output or "timeout", time.time() - started, self._is_ok(command, None, output))
+
     def cleanup_record_helpers(self) -> list[TiDcaResult]:
         """Terminate TI record helper consoles that can outlive start_record.
 
