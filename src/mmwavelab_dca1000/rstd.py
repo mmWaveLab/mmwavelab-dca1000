@@ -50,7 +50,9 @@ def build_rstd_powershell_command(
             "$lua_result = New-Object 'System.Object[]' 0",
             f"$send = [RtttNetClientAPI.RtttNetClient]::SendCommand({_ps_single_quote(lua_command)}, [ref]$lua_result)",
             '"SendCommand=" + $send',
-            "if ($send -ne 30000) { exit 3 }",
+            # Different mmWave Studio builds report either 30000 or 0 after
+            # accepting a command. Treat both as delivered.
+            "if (($send -ne 30000) -and ($send -ne 0)) { exit 3 }",
         ]
     )
 

@@ -134,7 +134,6 @@ def generate_iwr1843_best_range_config() -> str:
         "clutterRemoval -1 0",
         "calibDcRangeSig -1 0 -5 8 256",
         "extendedMaxVelocity -1 0",
-        "bpmCfg -1 0 0 1",
         "lvdsStreamCfg -1 1 1 0",
         "compRangeBiasAndRxChanPhase 0.0 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 0",
         "measureRangeBiasAndRxChanPhase 0 1.5 0.2",

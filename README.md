@@ -75,6 +75,20 @@ step:
 mmwl-dca1000 capture-sdk-demo --com-port COM7 --baudrate 115200 --duration-ms 1200 --stop-sensor
 ```
 
+Use the pure Python DCA1000 UDP path when TI's Windows helper tools are not
+available, or when bringing the chain up on Linux / Ubuntu ARM:
+
+```powershell
+mmwl-dca1000 dca-py-status --dca-json configs/dca1000_iwr1843.json
+mmwl-dca1000 capture-sdk-demo-py --com-port COM7 --baudrate 115200 --duration-ms 1200 --stop-sensor
+```
+
+For Ubuntu ARM hosts, keep the DCA1000 link on a real 1 GbE interface, assign
+the host NIC to `192.168.33.30`, keep the DCA1000 at `192.168.33.180`, and
+write captures to SSD/NVMe storage. The pure Python path talks to DCA1000 over
+UDP directly and does not require `DCA1000EVM_CLI_Control.exe`, mmWave Studio,
+or x86 Windows.
+
 Generate a mmWave Studio automation script when the board is in the
 AR-DevPack/FTDI firmware-load path instead of the mmWave SDK demo CLI path:
 

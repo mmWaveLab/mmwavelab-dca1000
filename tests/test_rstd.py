@@ -17,3 +17,4 @@ def test_build_rstd_powershell_command_mentions_netstart():
     assert "SendCommand" in ps
     assert "[ref]$lua_result" in ps
     assert "RSTD.NetStart()" in ps
+    assert "$send -ne 0" in ps

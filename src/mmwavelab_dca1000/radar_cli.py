@@ -101,6 +101,7 @@ def send_mmwave_cli_commands(
             ser.reset_input_buffer()
             ser.reset_output_buffer()
             for command in commands:
+                ser.reset_input_buffer()
                 result = _send_one_cli_command(ser, command, timeout_s=timeout_s)
                 results.append(result)
                 time.sleep(inter_command_delay_s)
@@ -123,18 +124,21 @@ def _send_one_cli_command(ser: serial.Serial, command: str, *, timeout_s: float)
                 chunks.append(chunk)
                 text = b"".join(chunks).decode("utf-8", errors="replace")
                 lowered = text.lower()
-                if "error" in lowered or "exception" in lowered:
+                if _is_cli_failure(lowered):
                     break
-                if "done" in lowered or "mmw" in lowered or "mmwave" in lowered:
-                    # The demo CLI usually echoes a prompt/banner after success.
-                    if len(text) > len(command):
-                        break
+                if "mmwdemo:/>" in lowered and any(token in lowered for token in ("done", "ignored:", "not recognized")):
+                    break
             else:
                 time.sleep(0.01)
         raw = b"".join(chunks)
         text = raw.decode("utf-8", errors="replace")
         lowered = text.lower()
-        ok = "error" not in lowered and "exception" not in lowered
+        ok = not _is_cli_failure(lowered)
         return CliCommandResult(command, ok, len(raw), text)
     except Exception as exc:
         return CliCommandResult(command, False, 0, "", f"{type(exc).__name__}: {exc}")
+
+
+def _is_cli_failure(lowered_text: str) -> bool:
+    failure_tokens = ("error", "exception", "not recognized", "invalid usage", "failed")
+    return any(token in lowered_text for token in failure_tokens)

@@ -4,13 +4,17 @@ from mmwavelab_dca1000.studio_lua import StudioLuaConfig, generate_iwr1843_studi
 
 
 def test_generate_studio_lua_contains_iwr1843_capture_flow():
-    text = generate_iwr1843_studio_lua(StudioLuaConfig(com_port=12, capture_path=r"D:\data\adc_data.bin"))
+    text = generate_iwr1843_studio_lua(
+        StudioLuaConfig(com_port=12, capture_path=r"D:\data\adc_data.bin", progress_path=r"D:\data\progress.csv")
+    )
     assert "COM_PORT = 12" in text
     assert "SOPControl" in text
     assert "DownloadBSSFw" in text
     assert "xwr18xx_radarss.bin" in text
     assert "CaptureCardConfig_StartRecord" in text
     assert "D:\\\\data\\\\adc_data.bin" in text
+    assert "D:\\\\data\\\\progress.csv" in text
+    assert "mark(\"script_start\"" in text
     assert "FREQ_SLOPE = 77.8" in text
 
 
